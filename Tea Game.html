@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tea Game 🍵</title>
+<link id="icon" rel="icon" href="">
+<style>
+body { margin:0; font-family:Arial; transition:0.3s; }
+
+/* LOADING */
+#loading {
+ position:fixed; inset:0; z-index:9999;
+ display:flex; flex-direction:column;
+ align-items:center; justify-content:center;
+ background:#121212; color:white;
+}
+#bar {
+ width:200px; height:10px; background:#333; margin-top:15px;
+ border-radius:5px; overflow:hidden;
+}
+#progress {
+ width:0%; height:100%; background:#4caf50;
+ transition:0.2s;
+}
+
+/* THEMES */
+body.dark { background:#121212; color:white; }
+body.light { background:#cceeff; color:black; }
+
+#main { display:flex; height:100vh; }
+#left { flex:2; text-align:center; padding-top:20px; }
+#right { flex:1; padding:20px; }
+
+#right.dark { background:#1e1e1e; }
+#right.light { background:#ddd; color:black; }
+
+/* PANEL */
+#adminPanel.dark { background:#111; color:white; }
+#adminPanel.light { background:#fff; color:black; }
+
+button { padding:10px; margin:5px; cursor:pointer; }
+button:hover { transform:scale(1.1); transition:0.2s; }
+
+#adminPanel {
+ position:fixed; top:50%; left:50%;
+ transform:translate(-50%,-50%) scale(0);
+ padding:20px; border-radius:10px;
+ transition:0.3s;
+}
+#adminPanel.show { transform:translate(-50%,-50%) scale(1); }
+</style>
+</head>
+<body class="dark">
+
+<div id="loading">
+  <div style="font-size:28px;">🍵 Tea Game</div>
+  <div style="font-size:14px;margin-top:5px;">Loading...</div>
+  <div id="bar"><div id="progress"></div></div>
+</div>
+
+<div id="main">
+<div id="left">
+<h1>Tea: <span id="tea">0</span> 🍵</h1>
+<button onclick="drink()">Drink 🍵</button><br>
+<button onclick="toggleAdmin()">Admin GUI 🔒</button><br>
+<h2>Rebirths: <span id="rebirths">0</span> ♻️</h2>
+<button onclick="rebirth()">Rebirth ♻️ (1M)</button><br>
+<button onclick="toggleGameTheme()">Toggle Game Theme 🌗</button>
+</div>
+
+<div id="right" class="dark">
+<h2>Shop 🛒</h2>
+
+<p>Click (<span id="cCost">10</span>)</p>
+<button onclick="buyClick(1)">Buy 1</button>
+<button onclick="buyClick(2)">Buy 2</button>
+<button onclick="buyClick(3)">Buy 3</button>
+<button onclick="buyClick('max')">Buy Max</button>
+
+<p>Auto (<span id="aCost">50</span>)</p>
+<button onclick="buyAuto(1)">Buy 1</button>
+<button onclick="buyAuto(2)">Buy 2</button>
+<button onclick="buyAuto(3)">Buy 3</button>
+<button onclick="buyAuto('max')">Buy Max</button>
+
+<p>Factory (<span id="fCost">500</span>)</p>
+<button onclick="buyFactory(1)">Buy 1</button>
+<button onclick="buyFactory(2)">Buy 2</button>
+<button onclick="buyFactory(3)">Buy 3</button>
+<button onclick="buyFactory('max')">Buy Max</button>
+</div>
+</div>
+
+<div id="adminPanel" class="light">
+<h3>ADMIN PANEL 😈</h3>
+<button onclick="setTea()">Set / Reset Tea</button><br>
+<button onclick="setClick()">Set / Reset Click</button><br>
+<button onclick="setAuto()">Set / Reset Auto</button><br>
+<button onclick="setFactory()">Set / Reset Factory</button><br>
+<button onclick="setRebirth()">Set / Reset Rebirth</button><br>
+<button onclick="togglePanelTheme()">Panel Theme 🎨</button><br>
+<button onclick="resetAll()">RESET ALL</button><br>
+<button onclick="toggleAdmin()">Close</button>
+</div>
+
+<script>
+let tea=0, perClick=1, auto=0, factory=0;
+let clickCost=10, autoCost=50, factoryCost=500;
+let fullToggle=false;
+
+/* LOADING BAR */
+let p=0;
+let loadInt=setInterval(()=>{
+ p+=5;
+ document.getElementById("progress").style.width=p+"%";
+ if(p>=100){
+  clearInterval(loadInt);
+  document.getElementById("loading").style.display="none";
+ }
+},80);
+
+/* SAVE */
+function save(){
+ localStorage.setItem("teaPanelTheme", JSON.stringify({
+  tea, perClick, auto, factory, clickCost, autoCost, factoryCost
+ }));
+}
+function load(){
+ let d=JSON.parse(localStorage.getItem("teaPanelTheme"));
+ if(d){
+  tea=d.tea||0; perClick=d.perClick||1;
+  auto=d.auto||0; factory=d.factory||0;
+  clickCost=d.clickCost||10;
+  autoCost=d.autoCost||50;
+  factoryCost=d.factoryCost||500;
+ }
+}
+load();
+
+/* THEMES */
+function saveGameTheme(m){localStorage.setItem("gameTheme",m);}
+function loadGameTheme(){setGameTheme(localStorage.getItem("gameTheme")||"dark");}
+function setGameTheme(m){
+ document.body.className=m;
+ document.getElementById("right").className=m;
+ saveGameTheme(m);
+}
+function toggleGameTheme(){
+ setGameTheme(document.body.className==="dark"?"light":"dark");
+}
+loadGameTheme();
+
+function savePanelTheme(m){localStorage.setItem("panelTheme",m);}
+function loadPanelTheme(){setPanelTheme(localStorage.getItem("panelTheme")||"light");}
+function setPanelTheme(m){
+ let p=document.getElementById("adminPanel");
+ p.className=m+(p.classList.contains("show")?" show":"");
+ savePanelTheme(m);
+}
+function togglePanelTheme(){
+ let p=document.getElementById("adminPanel");
+ setPanelTheme(p.classList.contains("dark")?"light":"dark");
+}
+loadPanelTheme();
+
+
+function formatTea(n){
+ const units = ["","K","M","B","T","QA","QI","SX","SP","QAD","SXD","SPD","QADE","SXTP"];
+ let i=0;
+ while(n>=1000 && i<units.length-1){
+  n/=1000;
+  i++;
+ }
+ return n.toFixed(1)+units[i];
+}
+
+function update(){
+ document.getElementById("tea").innerText = formatTea(tea);
+ document.getElementById("cCost").innerText=Math.floor(clickCost);
+ document.getElementById("aCost").innerText=Math.floor(autoCost);
+ document.getElementById("fCost").innerText=Math.floor(factoryCost);
+ save();
+}
+
+function drink(){ tea+=perClick; update(); }
+
+function buyClick(n){
+ for(let i=0;i<(n==="max"?999:n);i++){
+  if(tea>=clickCost){ tea-=clickCost; perClick++; clickCost*=1.2; } else break;
+ }
+ update();
+}
+function buyAuto(n){
+ for(let i=0;i<(n==="max"?999:n);i++){
+  if(tea>=autoCost){ tea-=autoCost; auto++; autoCost*=1.25; } else break;
+ }
+ update();
+}
+function buyFactory(n){
+ for(let i=0;i<(n==="max"?999:n);i++){
+  if(tea>=factoryCost){ tea-=factoryCost; factory++; factoryCost*=1.3; } else break;
+ }
+ update();
+}
+
+setInterval(()=>{ tea+=auto+(factory*5); update(); },1000);
+
+function toggleAdmin(){
+ if(fullToggle){
+  document.getElementById("adminPanel").classList.toggle("show");
+  return;
+ }
+ let code=prompt("Code?");
+ if(!code) return;
+ code=code.toLowerCase();
+
+ if(code==="fulltoggle"){
+  fullToggle=true;
+  document.getElementById("adminPanel").classList.add("show");
+  return;
+ }
+
+ if(code!=="lucas123") return;
+ document.getElementById("adminPanel").classList.toggle("show");
+}
+
+/* ADMIN */
+function setTea(){
+ let c=prompt("1: set\n2: reset");
+ if(c==="1"){ tea=parseInt(prompt("Tea:"))||tea; }
+ if(c==="2"){ tea=0; }
+ update();
+}
+function setClick(){
+ let c=prompt("1: set\n2: reset");
+ if(c==="1"){ perClick=parseInt(prompt("Click:"))||perClick; }
+ if(c==="2"){ perClick=1; }
+ update();
+}
+function setAuto(){
+ let c=prompt("1: set\n2: reset");
+ if(c==="1"){ auto=parseInt(prompt("Auto:"))||auto; }
+ if(c==="2"){ auto=0; }
+ update();
+}
+function setFactory(){
+ let c=prompt("1: set\n2: reset");
+ if(c==="1"){ factory=parseInt(prompt("Factory:"))||factory; }
+ if(c==="2"){ factory=0; }
+ update();
+}
+
+function resetAll(){
+ tea=0; perClick=1; auto=0; factory=0;
+ clickCost=10; autoCost=50; factoryCost=500;
+ update();
+}
+
+update();
+
+/* ICON SYSTEM (SAFE ADD) */
+function makeIcon(e){
+ return "data:image/svg+xml," + encodeURIComponent(
+ "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>"+e+"</text></svg>"
+ );
+}
+
+function setIcon(){
+ let icon=document.getElementById("icon");
+ if(!icon) return;
+
+ if(tea < 100) icon.href = makeIcon("🍵");
+ else if(tea < 1000) icon.href = makeIcon("🫖");
+ else icon.href = makeIcon("🔥");
+}
+
+/* animate only at high tea */
+setInterval(()=>{
+ if(tea >= 1000){
+  let icon=document.getElementById("icon");
+  if(icon){
+    icon.href = makeIcon(Math.random()>0.5 ? "🔥" : "🍵");
+  }
+ }
+},500);
+
+/* hook into update safely */
+let oldUpdate = update;
+update = function(){
+ oldUpdate();
+ setIcon();
+};
+
+
+/* REBIRTH SYSTEM */
+let rebirths = 0;
+
+function rebirth(){
+ if(tea >= 1000000){
+  tea = 0;
+  rebirths++;
+  perClick += rebirths;
+  auto = 0;
+  factory = 0;
+  clickCost = 10;
+  autoCost = 50;
+  factoryCost = 500;
+  update();
+ }
+}
+
+function setRebirth(){
+ let c=prompt("1: set\n2: reset");
+ if(c==="1"){ rebirths=parseInt(prompt("Rebirths:"))||rebirths; }
+ if(c==="2"){ rebirths=0; }
+ update();
+}
+
+/* ICON GOD MODE */
+function format(n){
+ if(n>=1e6) return (n/1e6).toFixed(1)+"M";
+ if(n>=1e3) return (n/1e3).toFixed(1)+"K";
+ return "🍵";
+}
+
+function setIconGod(){
+ let icon=document.getElementById("icon");
+ if(!icon) return;
+
+ if(tea < 100) icon.href = makeIcon("🍵");
+ else if(tea < 1000) icon.href = makeIcon("🫖");
+ else icon.href = makeIcon("🔥");
+}
+
+setInterval(()=>{
+ if(tea>=1000){
+  let icon=document.getElementById("icon");
+  if(icon){
+    icon.href = makeIcon(Math.random()>0.5 ? "🔥" : "🍵");
+  }
+ }
+},400);
+
+/* hook update */
+let oldUpdate2 = update;
+update = function(){
+ oldUpdate2();
+ setIconGod();
+ let r=document.getElementById("rebirths");
+ if(r) r.innerText = rebirths;
+};
+
+</script>
+
+</body>
+</html>
